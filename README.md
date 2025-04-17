@@ -1,105 +1,92 @@
 # PDF Merge & Summary Script
 
-A command-line tool to merge multiple PDF files into one and generate text summaries with metadata.
+A command-line tool that merges multiple PDF files into one and generates TextRank-based summary metadata for each individual PDF.
 
 ## Features
 
-- **Merge PDFs**: Combines all PDF files in a directory into a single PDF, adding bookmarks for each file.
-- **Text Extraction**: Extracts text from each PDF.
-- **Summary Generation**: Creates a JSON index (`summary_index.json`) mapping filenames to text snippets and a plain text summary (`summary.txt`).
-- **Recursive Search**: Optionally include PDFs in subdirectories.
-- **Configurable Summary Length**: Control the number of characters in each summary snippet.
-- **Verbose Logging**: Enable debug-level logs for detailed progress.
+- **Merge PDFs**: Combine all PDF files in a specified directory into a single PDF and add bookmarks for each original file.
+- **Text Extraction**: Extract text content from each PDF file.
+- **Summary Metadata Generation**: Perform TextRank summarization on each individual PDF and append the results to a JSON index file (`summary_index.json`).
+- **Recursive Search**: Use the `--recursive` option to include PDFs in subdirectories.
+- **Configurable Summary Length**: Control the number of sentences in each summary with `--num_sentences` and limit input text length with `--max_chars`.
+- **Verbose Logging**: Enable debug-level logging with the `--verbose` flag.
 
 ## Requirements
 
 - Python 3.7+
 - [PyPDF2](https://pypi.org/project/PyPDF2/)
+- [sumy](https://pypi.org/project/sumy/)
 - [nltk](https://pypi.org/project/nltk/)
-- Optional: [tqdm](https://pypi.org/project/tqdm/) for a progress bar
+- Optional: [tqdm](https://pypi.org/project/tqdm/) for progress bars
+- Recommended for Korean processing: [konlpy](https://pypi.org/project/konlpy/)
 
-> Note: The script will attempt to download the NLTK 'punkt' tokenizer if not already available.
+> The script will automatically download the NLTK 'punkt' tokenizer if it is not already available.
 
-## Getting Started
+## Installation
 
-1. Clone this repository or copy `pdf_merge_summary.py` into your project.
-2. Create and activate a virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install PyPDF2 nltk tqdm
-   ```
+```bash
+git clone <repository_url>
+cd <repository_folder>
+python3 -m venv venv
+source venv/bin/activate
+pip install PyPDF2 sumy nltk tqdm
+# If Korean tokenization is required:
+pip install konlpy
+```
 
 ## Usage
 
-Basic execution:
+Basic usage:
 
-```shell
-python pdf_merge_summary.py --input ./my_pdfs --output my_merged.pdf
+```bash
+python main.py --input ./pdf_folder --output merged.pdf
 ```
 
-Example with options:
+With options:
 
-```shell
-python pdf_merge_summary.py \
+```bash
+python main.py \
   --input ./reports \
   --output final_report.pdf \
   --recursive \
-  --summary_length 200 \
+  --num_sentences 5 \
+  --max_chars 3000 \
   --verbose
 ```
 
+## Command-Line Options
+
+| Option             | Description                                                   | Default            |
+| ------------------ | ------------------------------------------------------------- | ------------------ |
+| `--input`          | Path to the directory containing PDF files (required)         | —                  |
+| `--output`         | Output path for the merged PDF                                | `output/merged.pdf`|
+| `--recursive`      | Include PDFs in subdirectories                                | `False`            |
+| `--num_sentences`  | Number of sentences to include in each summary                | `3`                |
+| `--max_chars`      | Maximum number of characters to read for summarization (0 = no limit) | `3000`             |
+| `--verbose`        | Enable detailed debug logging                                 | `False`            |
+
+## Output
+
+- **Merged PDF**: The combined PDF file written to the path specified by `--output`.
+- **summary_index.json**: A cumulative JSON array of summary metadata objects.
+
 ## Development Environment Setup
 
-### Check Python Versions
-
 ```bash
-pyenv versions
-```
-
-### Install Python 3.12.9
-
-```bash
-pyenv install -l | grep 3.12
+# (Optional) Using pyenv to manage Python versions
+git clone <repository_url>
+cd <repository_folder>
 pyenv install 3.12.9
-```
+pyenv virtualenv 3.12.9 pdf-merge-summary
+pyenv local pdf-merge-summary
 
-### Create and Activate Virtual Environment
-
-```bash
-pyenv virtualenv 3.12.9 py-pdf-merger-3.12.9
-pyenv activate py-pdf-merger-3.12.9
-# Optional: pin the local version for the project
-pyenv local py-pdf-merger-3.12.9
-```
-
-### VSCode Configuration
-
-- Press `Cmd + Shift + P` and select **Python: Select Interpreter**, then choose `py-pdf-merger-3.12.9`.
-
-### Deactivate and Remove Virtual Environment
-
-```bash
-pyenv deactivate
-pyenv uninstall py-pdf-merger-3.12.9
-```
-
-### Install Required Packages and Freeze Requirements
-
-```bash
-pip install PyPDF2 nltk tqdm
+# Install dependencies and freeze
+dependencies="PyPDF2 sumy nltk tqdm konlpy"
+pip install $dependencies
 pip freeze > requirements.txt
 ```
-
-## Output Files
-
-- **Merged PDF**: The combined PDF with bookmarks (as specified by `--output`).
-- **summary_index.json**: JSON file mapping each original PDF filename to its text snippet.
-- **summary.txt**: Plain text file containing filenames and their snippets.
 
 ## License
 
 MIT License
+

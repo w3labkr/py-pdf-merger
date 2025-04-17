@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """
-pdf_merge_summary.py
+main.py
 
-A script to merge PDF files, add bookmarks, extract text, and generate summary metadata.
+This script merges PDF files, adds bookmarks, extracts text from each PDF, and generates TextRank summaries (metadata).
 
 Features:
- 1. Merge PDF files in a directory into a single PDF with bookmarks for each file.
- 2. Extract text from each PDF and generate summary metadata:
-    - JSON index mapping filenames to text snippets.
-    - Plain text summary file.
+ 1. Merge all PDF files in a directory into a single PDF and add bookmarks for each file.
+ 2. Extract text from each individual PDF to generate summary metadata:
+    - Accumulate a JSON index file (filename, bookmark, summary).
 
 Usage:
-    python pdf_merge_summary.py --input <pdf_folder> [options]
+    python main.py --input <pdf_folder> [options]
+
+Dependencies:
+    pip install PyPDF2 sumy nltk tqdm
+    # For Korean morphological analysis (optional):
+    # pip install konlpy
 
 Options:
-    --input            Path to directory containing PDF files (required).
-    --output           Path for the merged PDF (default: output/merged.pdf).
-    --recursive        Recursively include PDFs from subdirectories.
-    --summary_length   Number of characters to include in each summary snippet (default: 300).
-    --verbose          Enable detailed debug logging.
+    --input            Path to the directory containing PDF files (required)
+    --output           Output path for the merged PDF (default: output/merged.pdf)
+    --recursive        Recursively search subdirectories
+    --num_sentences    Number of sentences for the summary (default: 3)
+    --max_chars        Maximum characters for summary input (default: 3000)
+    --verbose          Enable detailed logging
 """
 
 import os
@@ -28,49 +33,39 @@ import re
 import logging
 import argparse
 from PyPDF2 import PdfMerger, PdfReader
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.text_rank import TextRankSummarizer
 import nltk
 
-# Ensure the NLTK punkt tokenizer is available
+# Download NLTK punkt tokenizer quietly
 nltk.download('punkt', quiet=True)
 
-# Optional progress bar
+# Optional progress bar loader
 try:
     from tqdm import tqdm
 except ImportError:
     def tqdm(iterable, **kwargs):
-        """Fallback progress indicator: returns the original iterable."""
         return iterable
 
 
 def setup_logging(verbose: bool):
     """
-    Configure logging level and format.
-
-    Args:
-        verbose (bool): If True, set level to DEBUG; otherwise INFO.
+    Configure logging level and format based on verbosity flag.
     """
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """
-    Extract and normalize text content from a PDF file.
-
-    Args:
-        pdf_path (str): Path to the PDF file.
-
-    Returns:
-        str: The extracted text with whitespace normalized, or an empty string on error.
+    Extract text from a PDF file and return it as a single string.
     """
     try:
         reader = PdfReader(pdf_path)
         pages = [page.extract_text() or '' for page in reader.pages]
         combined = '\n'.join(pages)
-        # Collapse multiple whitespace characters into a single space
+        # Normalize whitespace
         return re.sub(r"\s+", ' ', combined).strip()
     except Exception as e:
         logging.error(f"Failed to extract text from {pdf_path}: {e}")
@@ -79,145 +74,124 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 
 def find_pdfs(input_dir: str, recursive: bool) -> list:
     """
-    Discover PDF files in a directory, optionally recursively.
-
-    Args:
-        input_dir (str): Directory to search.
-        recursive (bool): If True, include subdirectories.
-
-    Returns:
-        list: Sorted list of full file paths to PDFs.
+    Find all PDF files in the given directory. Optionally search subdirectories.
     """
     pdfs = []
     if recursive:
         for root, _, files in os.walk(input_dir):
-            for fname in files:
-                if fname.lower().endswith('.pdf'):
-                    pdfs.append(os.path.join(root, fname))
+            for f in files:
+                if f.lower().endswith('.pdf'):
+                    pdfs.append(os.path.join(root, f))
     else:
-        for fname in os.listdir(input_dir):
-            if fname.lower().endswith('.pdf'):
-                pdfs.append(os.path.join(input_dir, fname))
+        for f in os.listdir(input_dir):
+            if f.lower().endswith('.pdf'):
+                pdfs.append(os.path.join(input_dir, f))
     return sorted(pdfs)
 
 
 def merge_and_process(args):
     """
-    Merge PDFs, add bookmarks, and generate summary metadata.
-
-    Args:
-        args: Parsed command-line arguments with attributes:
-            input (str): PDF directory.
-            output (str): Merged PDF path.
-            recursive (bool): Recurse into subdirectories.
-            summary_length (int): Number of characters per summary.
-            verbose (bool): Enable debug logging.
-
-    Side Effects:
-        Creates the merged PDF, a JSON index, and a summary.txt file in the output directory.
+    Merge all found PDFs into one file, add bookmarks, and generate TextRank summaries for each.
     """
     # Validate input directory
     if not os.path.isdir(args.input):
         logging.error(f"Input directory not found: {args.input}")
         sys.exit(1)
 
-    # Discover PDF files
     pdfs = find_pdfs(args.input, args.recursive)
-    total = len(pdfs)
-    if total == 0:
+    if not pdfs:
         logging.warning("No PDF files found to process.")
         return
-    logging.info(f"Processing {total} PDF files...")
+    logging.info(f"Starting to process {len(pdfs)} PDF files...")
 
-    # Prepare output directory
+    # Ensure output directory exists
     out_dir = os.path.dirname(args.output) or os.getcwd()
     os.makedirs(out_dir, exist_ok=True)
 
-    # Merge files and add bookmarks
+    # Prepare bookmark titles from filenames
+    bookmarks = [os.path.splitext(os.path.basename(p))[0] for p in pdfs]
+
+    # Merge PDFs and add bookmarks
     merger = PdfMerger()
-    for pdf in tqdm(pdfs, desc="Merging PDFs"):
-        bookmark = os.path.splitext(os.path.basename(pdf))[0]
-        merger.append(pdf, outline_item=bookmark)
+    for p, bm in zip(pdfs, bookmarks):
+        merger.append(p, outline_item=bm)
     try:
         merger.write(args.output)
         logging.info(f"Merged PDF saved to: {args.output}")
-    except Exception as e:
-        logging.error(f"Error writing merged PDF: {e}")
-        return
     finally:
         merger.close()
 
-    # Generate summaries
-    summary = {}
-    for pdf in tqdm(pdfs, desc="Extracting summaries"):
+    # Initialize TextRank summarizer
+    summarizer = TextRankSummarizer()
+    try:
+        # Try to use Korean tokenizer if konlpy is installed
+        tokenizer = Tokenizer("korean")
+    except Exception:
+        logging.warning("konlpy not installed: using English tokenizer instead.")
+        tokenizer = Tokenizer("english")
+
+    # Generate summary entries for each PDF
+    entries = []
+    for pdf, bm in zip(pdfs, bookmarks):
         text = extract_text_from_pdf(pdf)
-        summary[os.path.basename(pdf)] = text[:args.summary_length]
+        # Truncate text if it exceeds max_chars
+        if args.max_chars > 0 and len(text) > args.max_chars:
+            text = text[:args.max_chars]
+        if text:
+            try:
+                parser = PlaintextParser.from_string(text, tokenizer)
+                sents = summarizer(parser.document, args.num_sentences)
+                summary_text = ' '.join(str(s) for s in sents)
+            except Exception as e:
+                logging.error(f"Failed to summarize {pdf}: {e}")
+                # Fallback to first 200 characters
+                summary_text = text[:200]
+        else:
+            summary_text = ''
+        entries.append({
+            "filename": os.path.basename(args.output),
+            "bookmark": bm,
+            "summary": summary_text
+        })
 
-    # Write JSON index
+    # Append entries to JSON index file
     idx_path = os.path.join(out_dir, 'summary_index.json')
-    try:
-        with open(idx_path, 'w', encoding='utf-8') as jf:
-            json.dump(summary, jf, ensure_ascii=False, indent=2)
-        logging.info(f"JSON index saved to: {idx_path}")
-    except Exception as e:
-        logging.error(f"Error saving JSON index: {e}")
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r', encoding='utf-8') as jf:
+                existing = json.load(jf)
+            combined = existing + entries if isinstance(existing, list) else existing
+        except Exception as e:
+            logging.warning(f"Failed to read existing JSON index: {e}")
+            combined = entries
+    else:
+        combined = entries
 
-    # Write summary text file
-    txt_path = os.path.join(out_dir, 'summary.txt')
-    try:
-        with open(txt_path, 'w', encoding='utf-8') as sf:
-            for fname, snippet in summary.items():
-                base = os.path.splitext(fname)[0]
-                sf.write(f"{base}\n- {snippet}\n\n")
-        logging.info(f"Summary text saved to: {txt_path}")
-    except Exception as e:
-        logging.error(f"Error saving summary text: {e}")
+    with open(idx_path, 'w', encoding='utf-8') as jf:
+        json.dump(combined, jf, ensure_ascii=False, indent=2)
+    logging.info(f"JSON index file updated at: {idx_path}")
 
 
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments.
-
-    Returns:
-        argparse.Namespace: Contains parsed arguments.
     """
-    parser = argparse.ArgumentParser(
-        description="Merge PDFs and generate text summaries."
-    )
-    parser.add_argument(
-        '--input', required=True,
-        help='Path to directory containing PDF files.'
-    )
-    parser.add_argument(
-        '--output', default='output/merged.pdf',
-        help='File path for the merged PDF output.'
-    )
-    parser.add_argument(
-        '--recursive', action='store_true',
-        help='Include PDF files in subdirectories.'
-    )
-    parser.add_argument(
-        '--summary_length', type=int, default=300,
-        help='Number of characters to include in each summary snippet.'
-    )
-    parser.add_argument(
-        '--verbose', action='store_true',
-        help='Enable debug-level logging.'
-    )
+    parser = argparse.ArgumentParser(description="Merge PDFs and summarize individual files.")
+    parser.add_argument('--input', required=True, help='Directory of PDF files')
+    parser.add_argument('--output', default='output/merged.pdf', help='Path for merged PDF output')
+    parser.add_argument('--recursive', action='store_true', help='Search subdirectories recursively')
+    parser.add_argument('--num_sentences', type=int, default=3, help='Number of sentences in summary')
+    parser.add_argument('--max_chars', type=int, default=3000, help='Maximum characters of text for summarization')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed logging')
     return parser.parse_args()
 
 
 def main():
-    """
-    Main entry point: parse arguments, configure logging, and run merge process.
-    """
     args = parse_args()
     setup_logging(args.verbose)
-
-    # Ensure output directory exists if only filename is provided
+    # Ensure output path includes directory
     if not os.path.dirname(args.output):
         args.output = os.path.join('output', args.output)
-
     merge_and_process(args)
 
 
