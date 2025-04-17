@@ -10,6 +10,17 @@ Python script to merge PDF files, auto-insert bookmarks, generate metadata index
 python main.py --input ./my_pdfs --output my_merged.pdf
 ```
 
+실행 예제
+
+```shell
+python main.py --input ./data/개인정보포털/법령자료 --output 개인정보포털-법령자료-2024.pdf
+python main.py --input ./data/개인정보포털/행정규칙 --output 개인정보포털-행정규칙-2024.pdf
+python main.py --input ./data/개인정보포털/안내서 --output 개인정보포털-안내서-2024.pdf
+python main.py --input ./data/개인정보포털/판례보기 --output 개인정보포털-판례보기-2024.pdf
+python main.py --input ./data/공개SW포털 --output 공개SW포털-오픈소스SW-2025.pdf
+python main.py --input ./data/한국저작권위원회 --output 한국저작권위원회-저작권-2024.pdf
+```
+
 ## 개발 환경 설정
 
 파이썬 버전 확인
