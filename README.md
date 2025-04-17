@@ -1,69 +1,105 @@
-# py-pdf-merger
+# PDF Merge & Summary Script
 
-Python script to merge PDF files, auto-insert bookmarks, generate metadata index, extract text, and summarize content
+A command-line tool to merge multiple PDF files into one and generate text summaries with metadata.
 
-## 사용 방법
+## Features
 
-기본 실행
+- **Merge PDFs**: Combines all PDF files in a directory into a single PDF, adding bookmarks for each file.
+- **Text Extraction**: Extracts text from each PDF.
+- **Summary Generation**: Creates a JSON index (`summary_index.json`) mapping filenames to text snippets and a plain text summary (`summary.txt`).
+- **Recursive Search**: Optionally include PDFs in subdirectories.
+- **Configurable Summary Length**: Control the number of characters in each summary snippet.
+- **Verbose Logging**: Enable debug-level logs for detailed progress.
+
+## Requirements
+
+- Python 3.7+
+- [PyPDF2](https://pypi.org/project/PyPDF2/)
+- [nltk](https://pypi.org/project/nltk/)
+- Optional: [tqdm](https://pypi.org/project/tqdm/) for a progress bar
+
+> Note: The script will attempt to download the NLTK 'punkt' tokenizer if not already available.
+
+## Getting Started
+
+1. Clone this repository or copy `pdf_merge_summary.py` into your project.
+2. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install PyPDF2 nltk tqdm
+   ```
+
+## Usage
+
+Basic execution:
 
 ```shell
-python main.py --input ./my_pdfs --output my_merged.pdf
+python pdf_merge_summary.py --input ./my_pdfs --output my_merged.pdf
 ```
 
-실행 예제
+Example with options:
 
 ```shell
-python main.py --input ./data/개인정보포털/법령자료 --output 개인정보포털-법령자료-2024.pdf
-python main.py --input ./data/개인정보포털/행정규칙 --output 개인정보포털-행정규칙-2024.pdf
-python main.py --input ./data/개인정보포털/안내서 --output 개인정보포털-안내서-2024.pdf
-python main.py --input ./data/개인정보포털/판례보기 --output 개인정보포털-판례보기-2024.pdf
-python main.py --input ./data/공개SW포털 --output 공개SW포털-오픈소스SW-2025.pdf
-python main.py --input ./data/한국저작권위원회 --output 한국저작권위원회-저작권-2024.pdf
+python pdf_merge_summary.py \
+  --input ./reports \
+  --output final_report.pdf \
+  --recursive \
+  --summary_length 200 \
+  --verbose
 ```
 
-## 개발 환경 설정
+## Development Environment Setup
 
-파이썬 버전 확인
+### Check Python Versions
 
-```shell
+```bash
 pyenv versions
 ```
 
-파이썬 설치
+### Install Python 3.12.9
 
-```shell
+```bash
 pyenv install -l | grep 3.12
 pyenv install 3.12.9
 ```
 
-가상환경 생성 및 활성화
+### Create and Activate Virtual Environment
 
-```shell
+```bash
 pyenv virtualenv 3.12.9 py-pdf-merger-3.12.9
 pyenv activate py-pdf-merger-3.12.9
-pyenv shell py-pdf-merger-3.12.9
-```
-
-VSCODE 설정
-
-- Cmd + Shift + P -> Python interpreter 변경
-
-가상환경 버전 고정
-
-```shell
+# Optional: pin the local version for the project
 pyenv local py-pdf-merger-3.12.9
 ```
 
-가상환경 종료 및 삭제
+### VSCode Configuration
 
-```shell
-pyenv deactivate py-pdf-merger-3.12.9
+- Press `Cmd + Shift + P` and select **Python: Select Interpreter**, then choose `py-pdf-merger-3.12.9`.
+
+### Deactivate and Remove Virtual Environment
+
+```bash
+pyenv deactivate
 pyenv uninstall py-pdf-merger-3.12.9
 ```
 
-필수 패키지 설치
+### Install Required Packages and Freeze Requirements
 
-```shell
-(py-pdf-merger-3.12.9) pip install PyPDF2
-(py-pdf-merger-3.12.9) pip freeze > requirements.txt
+```bash
+pip install PyPDF2 nltk tqdm
+pip freeze > requirements.txt
 ```
+
+## Output Files
+
+- **Merged PDF**: The combined PDF with bookmarks (as specified by `--output`).
+- **summary_index.json**: JSON file mapping each original PDF filename to its text snippet.
+- **summary.txt**: Plain text file containing filenames and their snippets.
+
+## License
+
+MIT License
