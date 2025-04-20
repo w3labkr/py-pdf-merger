@@ -55,7 +55,7 @@ python main.py \
   --input ./reports \
   --output final_report.pdf \
   --recursive \
-  --num_sentences 5 \
+  --num_sentences 3 \
   --max_chars 3000 \
   --verbose
 ```
