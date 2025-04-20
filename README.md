@@ -84,4 +84,4 @@ python main.py \
 
 ## License
 
-MIT License
+This software license under the [MIT License](LICENSE).
