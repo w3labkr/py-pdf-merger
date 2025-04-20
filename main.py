@@ -95,7 +95,6 @@ def get_pdf_metadata(pdf_path: str) -> dict:
     """
     metadata = {
         "title": "",
-        "author": "",
         "pages": 0
     }
     
@@ -112,8 +111,6 @@ def get_pdf_metadata(pdf_path: str) -> dict:
         if reader.metadata:
             if reader.metadata.title:
                 metadata["title"] = reader.metadata.title
-            if reader.metadata.author:
-                metadata["author"] = reader.metadata.author
     except Exception as e:
         logging.error(f"Failed to extract metadata from {pdf_path}: {e}")
     
