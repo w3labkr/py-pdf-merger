@@ -25,13 +25,16 @@ A command-line tool that merges multiple PDF files into one and generates TextRa
 ## Installation
 
 ```bash
-git clone <repository_url>
-cd <repository_folder>
-python3 -m venv venv
-source venv/bin/activate
-pip install PyPDF2 sumy nltk tqdm
-# If Korean tokenization is required:
-pip install konlpy
+# Using pyenv to manage Python versions
+git clone https://github.com/w3labkr/py-pdf-merger.git
+cd py-pdf-merger
+pyenv install 3.12.9
+pyenv virtualenv 3.12.9 pdf-merge-summary
+pyenv local pdf-merge-summary
+
+# Install dependencies and freeze
+pip install PyPDF2 sumy nltk tqdm konlpy
+pip freeze > requirements.txt
 ```
 
 ## Usage
@@ -70,23 +73,6 @@ python main.py \
 - **Merged PDF**: The combined PDF file written to the path specified by `--output`.
 - **summary_index.json**: A cumulative JSON array of summary metadata objects.
 
-## Development Environment Setup
-
-```bash
-# (Optional) Using pyenv to manage Python versions
-git clone <repository_url>
-cd <repository_folder>
-pyenv install 3.12.9
-pyenv virtualenv 3.12.9 pdf-merge-summary
-pyenv local pdf-merge-summary
-
-# Install dependencies and freeze
-dependencies="PyPDF2 sumy nltk tqdm konlpy"
-pip install $dependencies
-pip freeze > requirements.txt
-```
-
 ## License
 
 MIT License
-
