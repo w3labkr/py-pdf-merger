@@ -8,8 +8,10 @@ A command-line tool that merges multiple PDF files into one and generates TextRa
 - **Text Extraction**: Extract text content from each PDF file.
 - **Summary Metadata Generation**: Perform TextRank summarization on each individual PDF and append the results to a JSON index file (`summary_index.json`).
 - **Recursive Search**: Use the `--recursive` option to include PDFs in subdirectories.
-- **Configurable Summary Length**: Control the number of sentences in each summary with `--num_sentences` and limit input text length with `--max_chars`.
+- **Configurable Summary Length**: Control the number of sentences in each summary with `--num_sentences` and limit input text length with `--max_chars` (sentence boundaries are considered).
 - **Verbose Logging**: Enable debug-level logging with the `--verbose` flag.
+- **Language Detection**: Automatically detect the language of the text and use an appropriate tokenizer (requires `langdetect`).
+- **Natural Sorting**: PDF files are sorted naturally (e.g., `file2.pdf` comes before `file10.pdf`).
 
 ## Requirements
 
@@ -17,6 +19,7 @@ A command-line tool that merges multiple PDF files into one and generates TextRa
 - [PyPDF2](https://pypi.org/project/PyPDF2/)
 - [sumy](https://pypi.org/project/sumy/)
 - [nltk](https://pypi.org/project/nltk/)
+- [langdetect](https://pypi.org/project/langdetect/) (optional, for language detection)
 - Optional: [tqdm](https://pypi.org/project/tqdm/) for progress bars
 - Recommended for Korean processing: [konlpy](https://pypi.org/project/konlpy/)
 
@@ -33,7 +36,7 @@ pyenv virtualenv 3.12.9 pdf-merge-summary
 pyenv local pdf-merge-summary
 
 # Install dependencies and freeze
-pip install PyPDF2 sumy nltk tqdm konlpy
+pip install PyPDF2 sumy nltk tqdm langdetect konlpy
 pip freeze > requirements.txt
 ```
 
@@ -72,6 +75,12 @@ python main.py \
 
 - **Merged PDF**: The combined PDF file written to the path specified by `--output`.
 - **summary_index.json**: A cumulative JSON array of summary metadata objects.
+
+### Additional Notes
+
+- **Encrypted PDFs**: The script attempts to decrypt encrypted PDFs using an empty password. If decryption fails, the file will be skipped.
+- **Natural Sorting**: PDF files are sorted naturally (e.g., `file2.pdf` comes before `file10.pdf`).
+- **Fallback for Summarization**: If summarization fails, the script falls back to the first 200 characters of the text.
 
 ## License
 

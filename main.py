@@ -13,7 +13,7 @@ Usage:
     python main.py --input <pdf_folder> [options]
 
 Dependencies:
-    pip install PyPDF2 sumy nltk tqdm
+    pip install PyPDF2 sumy nltk tqdm langdetect
     # For Korean morphological analysis (optional):
     # pip install konlpy
 
@@ -41,6 +41,14 @@ import nltk
 # Download NLTK punkt tokenizer quietly
 nltk.download('punkt', quiet=True)
 
+# Try to import langdetect for language detection
+try:
+    from langdetect import detect
+    HAS_LANGDETECT = True
+except ImportError:
+    HAS_LANGDETECT = False
+    logging.warning("langdetect not installed: language detection unavailable")
+
 # Optional progress bar loader
 try:
     from tqdm import tqdm
@@ -63,6 +71,15 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     """
     try:
         reader = PdfReader(pdf_path)
+        # Check if PDF is encrypted
+        if reader.is_encrypted:
+            try:
+                # Try with empty password
+                reader.decrypt('')
+            except:
+                logging.error(f"Cannot decrypt PDF: {pdf_path}")
+                return ''
+        
         pages = [page.extract_text() or '' for page in reader.pages]
         combined = '\n'.join(pages)
         # Normalize whitespace
@@ -70,6 +87,37 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except Exception as e:
         logging.error(f"Failed to extract text from {pdf_path}: {e}")
         return ''
+
+
+def get_pdf_metadata(pdf_path: str) -> dict:
+    """
+    Extract metadata from PDF file.
+    """
+    metadata = {
+        "title": "",
+        "author": "",
+        "pages": 0
+    }
+    
+    try:
+        reader = PdfReader(pdf_path)
+        if reader.is_encrypted:
+            try:
+                reader.decrypt('')
+            except:
+                return metadata
+        
+        metadata["pages"] = len(reader.pages)
+        
+        if reader.metadata:
+            if reader.metadata.title:
+                metadata["title"] = reader.metadata.title
+            if reader.metadata.author:
+                metadata["author"] = reader.metadata.author
+    except Exception as e:
+        logging.error(f"Failed to extract metadata from {pdf_path}: {e}")
+    
+    return metadata
 
 
 def find_pdfs(input_dir: str, recursive: bool) -> list:
@@ -86,7 +134,76 @@ def find_pdfs(input_dir: str, recursive: bool) -> list:
         for f in os.listdir(input_dir):
             if f.lower().endswith('.pdf'):
                 pdfs.append(os.path.join(input_dir, f))
-    return sorted(pdfs)
+    
+    # Sort files naturally (so file10.pdf comes after file2.pdf, not before)
+    def natural_sort_key(s):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+    
+    return sorted(pdfs, key=natural_sort_key)
+
+
+def sanitize_bookmark_title(title: str, max_length: int = 100) -> str:
+    """
+    Make sure bookmark title is valid and not too long.
+    """
+    # Remove or replace characters that might cause issues
+    title = re.sub(r'[\\/*?:"<>|]', '-', title)
+    
+    # Limit length
+    if len(title) > max_length:
+        title = title[:max_length-3] + "..."
+    
+    return title
+
+
+def get_tokenizer_for_language(text: str) -> Tokenizer:
+    """
+    Detect language and return appropriate tokenizer.
+    """
+    if not HAS_LANGDETECT or not text:
+        return Tokenizer("english")
+    
+    try:
+        lang = detect(text[:min(1000, len(text))])
+        if lang == 'ko':
+            return Tokenizer("korean")
+        elif lang.startswith('zh'):
+            return Tokenizer("chinese")
+        elif lang == 'ja':
+            return Tokenizer("japanese")
+        else:
+            return Tokenizer("english")
+    except:
+        return Tokenizer("english")
+
+
+def summarize_text(text: str, num_sentences: int, max_chars: int) -> str:
+    """
+    Summarize text using TextRank algorithm.
+    """
+    if not text:
+        return ""
+        
+    # Truncate text if necessary, but try to keep complete sentences
+    if max_chars > 0 and len(text) > max_chars:
+        truncated = text[:max_chars]
+        # Try to end at a sentence boundary
+        last_period = truncated.rfind('.')
+        if last_period > max_chars * 0.8:  # Only if we didn't lose too much text
+            truncated = truncated[:last_period+1]
+        text = truncated
+    
+    tokenizer = get_tokenizer_for_language(text)
+    
+    try:
+        parser = PlaintextParser.from_string(text, tokenizer)
+        summarizer = TextRankSummarizer()
+        sents = summarizer(parser.document, num_sentences)
+        return ' '.join(str(s) for s in sents)
+    except Exception as e:
+        logging.error(f"Failed to summarize text: {e}")
+        # Fallback to first 200 characters
+        return text[:200] + "..."
 
 
 def merge_and_process(args):
@@ -102,74 +219,88 @@ def merge_and_process(args):
     if not pdfs:
         logging.warning("No PDF files found to process.")
         return
-    logging.info(f"Starting to process {len(pdfs)} PDF files...")
+    
+    pdf_count = len(pdfs)
+    logging.info(f"Starting to process {pdf_count} PDF files...")
 
     # Ensure output directory exists
     out_dir = os.path.dirname(args.output) or os.getcwd()
     os.makedirs(out_dir, exist_ok=True)
 
-    # Prepare bookmark titles from filenames
-    bookmarks = [os.path.splitext(os.path.basename(p))[0] for p in pdfs]
-
-    # Merge PDFs and add bookmarks
+    # Process PDFs with progress bar
+    entries = []
     merger = PdfMerger()
-    for p, bm in zip(pdfs, bookmarks):
-        merger.append(p, outline_item=bm)
+    current_page = 0
+    
+    for pdf_path in tqdm(pdfs, desc="Processing PDFs", unit="file"):
+        try:
+            # Extract filename for bookmark
+            filename = os.path.basename(pdf_path)
+            name_without_ext = os.path.splitext(filename)[0]
+            
+            # Get metadata and sanitize bookmark title
+            metadata = get_pdf_metadata(pdf_path)
+            
+            # Use PDF title as bookmark if available, otherwise use filename
+            bookmark_title = metadata["title"] or name_without_ext
+            bookmark_title = sanitize_bookmark_title(bookmark_title)
+            
+            # Extract text for summary
+            text = extract_text_from_pdf(pdf_path)
+            summary = summarize_text(text, args.num_sentences, args.max_chars)
+            
+            # Append the PDF with bookmark
+            merger.append(pdf_path, outline_item=bookmark_title)
+            
+            # Create entry for JSON index
+            entries.append({
+                "bookmark": bookmark_title,
+                "page_number": current_page + 1, # 1-based page numbering
+                "page_count": metadata["pages"],
+                "summary": summary,
+                "filename": os.path.basename(args.output)
+            })
+            
+            # Update current page count for next file
+            current_page += metadata["pages"]
+            
+        except Exception as e:
+            logging.error(f"Error processing {pdf_path}: {e}")
+    
+    # Save the merged PDF
     try:
         merger.write(args.output)
-        logging.info(f"Merged PDF saved to: {args.output}")
+        logging.info(f"Merged PDF with {pdf_count} files saved to: {args.output}")
+    except Exception as e:
+        logging.error(f"Failed to write merged PDF: {e}")
+        sys.exit(1)
     finally:
         merger.close()
 
-    # Initialize TextRank summarizer
-    summarizer = TextRankSummarizer()
-    try:
-        # Try to use Korean tokenizer if konlpy is installed
-        tokenizer = Tokenizer("korean")
-    except Exception:
-        logging.warning("konlpy not installed: using English tokenizer instead.")
-        tokenizer = Tokenizer("english")
-
-    # Generate summary entries for each PDF
-    entries = []
-    for pdf, bm in zip(pdfs, bookmarks):
-        text = extract_text_from_pdf(pdf)
-        # Truncate text if it exceeds max_chars
-        if args.max_chars > 0 and len(text) > args.max_chars:
-            text = text[:args.max_chars]
-        if text:
-            try:
-                parser = PlaintextParser.from_string(text, tokenizer)
-                sents = summarizer(parser.document, args.num_sentences)
-                summary_text = ' '.join(str(s) for s in sents)
-            except Exception as e:
-                logging.error(f"Failed to summarize {pdf}: {e}")
-                # Fallback to first 200 characters
-                summary_text = text[:200]
-        else:
-            summary_text = ''
-        entries.append({
-            "filename": os.path.basename(args.output),
-            "bookmark": bm,
-            "summary": summary_text
-        })
-
-    # Append entries to JSON index file
+    # Create or update JSON index file
     idx_path = os.path.join(out_dir, 'summary_index.json')
+    existing_entries = []
+    
     if os.path.exists(idx_path):
         try:
             with open(idx_path, 'r', encoding='utf-8') as jf:
-                existing = json.load(jf)
-            combined = existing + entries if isinstance(existing, list) else existing
+                data = json.load(jf)
+                if isinstance(data, list):
+                    existing_entries = data
+                else:
+                    logging.warning("Existing index file has incorrect format. Creating new index.")
         except Exception as e:
             logging.warning(f"Failed to read existing JSON index: {e}")
-            combined = entries
-    else:
-        combined = entries
-
+    
+    # Add merged PDF filename to entries
+    for entry in entries:
+        entry["filename"] = os.path.basename(args.output)
+    
+    combined = existing_entries + entries
+    
     with open(idx_path, 'w', encoding='utf-8') as jf:
         json.dump(combined, jf, ensure_ascii=False, indent=2)
-    logging.info(f"JSON index file updated at: {idx_path}")
+    logging.info(f"JSON index with {len(entries)} entries updated at: {idx_path}")
 
 
 def parse_args() -> argparse.Namespace:
