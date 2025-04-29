@@ -6,7 +6,7 @@ A command-line tool that merges multiple PDF files into one and generates TextRa
 
 - **Merge PDFs**: Combine all PDF files in a specified directory into a single PDF and add bookmarks for each original file.
 - **Text Extraction**: Extract text content from each PDF file.
-- **Summary Metadata Generation**: Perform TextRank summarization on each individual PDF and append the results to a JSON index file (`summary_index.json`).
+- **Summary Metadata Generation**: Perform TextRank summarization on each individual PDF and append the results to a JSON index file (`index.json`).
 - **Recursive Search**: Use the `--recursive` option to include PDFs in subdirectories.
 - **Configurable Summary Length**: Control the number of sentences in each summary with `--num_sentences` and limit input text length with `--max_chars` (sentence boundaries are considered).
 - **Verbose Logging**: Enable debug-level logging with the `--verbose` flag.
@@ -74,7 +74,7 @@ python main.py \
 ## Output
 
 - **Merged PDF**: The combined PDF file written to the path specified by `--output`.
-- **summary_index.json**: A cumulative JSON array of summary metadata objects.
+- **index.json**: A cumulative JSON array of summary metadata objects.
 
 ### Additional Notes
 

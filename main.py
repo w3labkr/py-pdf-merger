@@ -275,7 +275,7 @@ def merge_and_process(args):
         merger.close()
 
     # Create or update JSON index file
-    idx_path = os.path.join(out_dir, 'summary_index.json')
+    idx_path = os.path.join(out_dir, 'index.json')
     existing_entries = []
     
     if os.path.exists(idx_path):
