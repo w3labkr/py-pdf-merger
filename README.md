@@ -32,8 +32,8 @@ A command-line tool that merges multiple PDF files into one and generates TextRa
 git clone https://github.com/w3labkr/py-pdf-merger.git
 cd py-pdf-merger
 pyenv install 3.12.9
-pyenv virtualenv 3.12.9 pdf-merge-summary
-pyenv local pdf-merge-summary
+pyenv virtualenv 3.12.9 py-pdf-merger-3.12.9
+pyenv local py-pdf-merger-3.12.9
 
 # Install dependencies and freeze
 pip install PyPDF2 sumy nltk tqdm langdetect konlpy
